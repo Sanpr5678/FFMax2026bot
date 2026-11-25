@@ -1,0 +1,9 @@
+GEN_MODE = os.getenv("GEN_MODE", "grant")          # "grant" ya "api"
+GEN_API_URL = os.getenv("GEN_API_URL", "")
+GEN_API_KEY = os.getenv("GEN_API_KEY", "")
+GEN_REGION = os.getenv("GEN_REGION", DEFAULT_REGION).upper()
+GEN_MAX_PER_REQ = int(os.getenv("GEN_MAX_PER_REQ", "20"))
+GEN_COOLDOWN = int(os.getenv("GEN_COOLDOWN", "60"))
+LOOP_INTERVAL = int(os.getenv("LOOP_INTERVAL", "10"))
+LOOP_BATCH = int(os.getenv("LOOP_BATCH", "1"))
+CHANNEL_ID = os.getenv("CHANNEL_ID", "")
