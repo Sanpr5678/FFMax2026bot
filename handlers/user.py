@@ -177,3 +177,52 @@ async def cmd_stats(m: Message):
         await wait.edit_text(ffapi.format_player(data, uid, region))
     except ffapi.FFError:
         await wait.edit_text("❌ Data nahi mila. UID/region check karo.")
+        _cooldown: dict[int, float] = {}
+
+
+@router.message(Command("gen"))
+async def cmd_gen(m: Message):
+    if await _maintenance() and m.from_user.id not in ADMIN_IDS:
+        await m.answer("🛠 Maintenance mode.")
+        return
+    last = _cooldown.get(m.from_user.id, 0)
+    if time.time() - last < GEN_COOLDOWN and m.from_user.id not in ADMIN_IDS:
+        await m.answer(f"⏳ Thoda ruko: {int(GEN_COOLDOWN - (time.time() - last))}s baad try karo.")
+        return
+    parts = (m.text or "").split()
+    count = min(int(parts[1]), GEN_MAX_PER_REQ) if len(parts) > 1 and parts[1].isdigit() else 1
+    region = parts[2].upper() if len(parts) > 2 else GEN_REGION
+    _cooldown[m.from_user.id] = time.time()
+
+    wait = await m.answer(f"⏳ {count} account bana raha hoon ({region})...")
+    accs, fails = [], 0
+    for _ in range(count):
+        try:
+            a = await gen.create_account(region)
+            await db.add_account(a["uid"], a["password"], a["region"], a.get("jwt"), m.from_user.id)
+            accs.append(a)
+        except Exception:
+            fails += 1
+        await asyncio.sleep(0.4)
+
+    if not accs:
+        await wait.edit_text("❌ Koi account nahi bana. API/token fail hui, thodi der baad try karo.")
+        return
+
+    body = "\n".join(f"{a['uid']}|{a['password']}" for a in accs)
+    txt = f"# FF MAX guest accounts ({region})\n# format: uid|password\n{body}\n"
+    await wait.edit_text(f"✅ {len(accs)} account bane" + (f" | ❌ {fails} fail" if fails else ""))
+    await m.answer_document(
+        BufferedInputFile(txt.encode(), filename=f"ffmax_{region}_{len(accs)}.txt"),
+        caption="<i>UID|PASS se FF MAX me guest login karo. Turant password change kar lo.</i>",
+    )
+
+
+@router.message(Command("myacc"))
+async def cmd_myacc(m: Message):
+    rows = await db.recent_accounts(10, m.from_user.id)
+    if not rows:
+        await m.answer("Tumne abhi tak koi account nahi banaya. /gen se banao.")
+        return
+    lines = [f"<code>{u}</code> | <code>{p}</code> | {r}" for u, p, r, _t in rows]
+    await m.answer("<b>🔑 Tumhare last accounts</b>\n\n" + "\n".join(lines))
